@@ -3,6 +3,7 @@ import numpy
 import simpy
 
 RANDOM_SEED = 978
+random.seed(RANDOM_SEED)
 
 INTERARRIVAL_RATE = 14.3
 MEAN_RENEGE =  60
@@ -11,9 +12,6 @@ MEAN_FRONT_DESK = 7.2
 STD_FRONT_DEKS = 2.7
 
 MEAN_EXPERT= 10.2
-
-SERVICE_RANGE = [50, 90]
-random.seed(RANDOM_SEED)
 
 service_times_front_desk = [] 
 service_times_expert = []
