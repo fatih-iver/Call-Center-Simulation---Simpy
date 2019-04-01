@@ -14,7 +14,7 @@ EXPERT_OPERATOR_BREAK_TIME = 3
 SHIFT_DURATION = 480
 HIGH_PRIORITY = 0
 LOW_PRIORITY = 1
-CUSTOMER_COUNT = 1000
+CUSTOMER_COUNT = 5
 
 FRONT_OPERATOR_SIGMA = (math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1))**0.5
 
@@ -30,6 +30,7 @@ expert_operator_waiting_times = [0] * CUSTOMER_COUNT
 total_system_times = [0] * CUSTOMER_COUNT
 total_shift_time = 0
 
+total = 0
 
 class Customer:
     customers_served_or_reneged = CUSTOMER_COUNT
@@ -44,7 +45,7 @@ class Customer:
 
     def call(self):
         global front_desk_operator_busy_time, expert_operator_busy_time, \
-            front_desk_operator_waiting_times, expert_operator_waiting_times, total_system_times
+            front_desk_operator_waiting_times, expert_operator_waiting_times, total_system_times, total
 
         print(f'{self.name} initiated call at {self.environment.now}')
         total_system_time_start = self.environment.now
@@ -72,6 +73,7 @@ class Customer:
             expert_operator_wait_end = self.environment.now
             expert_operator_waiting_times[self.id] = expert_operator_wait_end - expert_operator_wait_start
 
+            total += (len(expert_operator.queue) + 1) * expert_operator_waiting_times[self.id]
             if request not in results:
                 print(f'{self.name} reneged at {self.environment.now} after waiting '
                       f'for {patience} minutes on the expert operator\'s queue')
@@ -161,3 +163,5 @@ print(front_desk_operator_utilization)
 print(expert_operator_utilization)
 print(avg_total_waiting_time)
 print(max_waiting_to_system_time_ratio)
+
+print(total / sum(expert_operator_waiting_times))
