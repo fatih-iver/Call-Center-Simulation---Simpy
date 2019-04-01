@@ -1,6 +1,7 @@
 import simpy
 import random
 import numpy as np
+import math
 
 # CONSTANTS
 PATIENCE_MEAN = 60
@@ -13,14 +14,21 @@ EXPERT_OPERATOR_BREAK_TIME = 3
 SHIFT_DURATION = 480
 HIGH_PRIORITY = 0
 LOW_PRIORITY = 1
-CUSTOMER_COUNT = 5
+CUSTOMER_COUNT = 1000
 
+FRONT_OPERATOR_SIGMA = (math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1))**0.5
+
+FRONT_OPERATOR_MU = math.log(FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN) - 0.5 * math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1)
+
+
+print(FRONT_OPERATOR_MU, FRONT_OPERATOR_SIGMA)
 # TODO STATS
 front_desk_operator_busy_time = 0
 expert_operator_busy_time = 0
-front_desk_operator_waiting_times = {}
-expert_operator_waiting_times = {}
-total_system_time = 0
+front_desk_operator_waiting_times = [0] * CUSTOMER_COUNT
+expert_operator_waiting_times = [0] * CUSTOMER_COUNT
+total_system_times = [0] * CUSTOMER_COUNT
+total_shift_time = 0
 
 
 class Customer:
@@ -36,29 +44,21 @@ class Customer:
 
     def call(self):
         global front_desk_operator_busy_time, expert_operator_busy_time, \
-            front_desk_operator_waiting_times, expert_operator_waiting_times
+            front_desk_operator_waiting_times, expert_operator_waiting_times, total_system_times
 
         print(f'{self.name} initiated call at {self.environment.now}')
-
+        total_system_time_start = self.environment.now
         front_desk_operator_wait_start = self.environment.now
         with self.front_desk_operator.request() as request:
-            patience = random.expovariate(1 / PATIENCE_MEAN)
-            results = yield request | self.environment.timeout(patience)
-
+            yield request 
             front_desk_operator_wait_end = self.environment.now
             front_desk_operator_waiting_times[self.id] = front_desk_operator_wait_end - front_desk_operator_wait_start
-
-            if request not in results:
-                print(f'{self.name} reneged at {self.environment.now} after waiting '
-                      f'for {patience} minutes on the front desk operator\'s queue')
-                Customer.customers_served_or_reneged -= 1
-                self.environment.exit()
 
             front_desk_operator_busy_time_start = self.environment.now
             print(f'{self.name} started talking to the front desk operator at {self.environment.now}')
             # TODO lognormal random variable
-            yield self.environment.timeout(abs(random.normalvariate(FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN,
-                                                                    FRONT_DESK_OPERATOR_SERVICE_TIME_STD)))
+            yield self.environment.timeout(abs(random.lognormvariate(FRONT_OPERATOR_MU,
+                                                                    FRONT_OPERATOR_SIGMA)))
 
             front_desk_operator_busy_time_end = self.environment.now
             front_desk_operator_busy_time += front_desk_operator_busy_time_end - front_desk_operator_busy_time_start
@@ -75,6 +75,8 @@ class Customer:
             if request not in results:
                 print(f'{self.name} reneged at {self.environment.now} after waiting '
                       f'for {patience} minutes on the expert operator\'s queue')
+                total_system_time_end = self.environment.now
+                total_system_times[self.id] = total_system_time_end - total_system_time_start
                 Customer.customers_served_or_reneged -= 1
                 self.environment.exit()
 
@@ -87,12 +89,14 @@ class Customer:
 
             print(f'{self.name} finished talking to the expert operator at {self.environment.now}')
 
+        total_system_time_end = self.environment.now
+        total_system_times[self.id] = total_system_time_end - total_system_time_start
         Customer.customers_served_or_reneged -= 1
 
 
 def generate_customers(environment, front_desk_operator, expert_operator):
     for i in range(CUSTOMER_COUNT):
-        Customer(i + 1, environment, front_desk_operator, expert_operator)
+        Customer(i, environment, front_desk_operator, expert_operator)
         yield environment.timeout(random.expovariate(1 / INTER_ARRIVAL_TIME_MEAN))
 
 
@@ -133,8 +137,8 @@ def generate_shifts(environment, expert_break_process):
         shift_count += 1
     expert_break_process.interrupt()
 
-    global total_system_time
-    total_system_time = SHIFT_DURATION * (shift_count - 1)
+    global total_shift_time
+    total_shift_time = SHIFT_DURATION * (shift_count - 1)
 
 
 environment = simpy.Environment()
@@ -145,6 +149,15 @@ expert_break_process = environment.process(generate_expert_breaks(environment, e
 shift_process = environment.process(generate_shifts(environment, expert_break_process))
 environment.run()
 
-print(total_system_time, front_desk_operator_busy_time, expert_operator_busy_time)
-print(expert_operator_waiting_times)
-print(front_desk_operator_waiting_times)
+total_waiting_times = [front_desk_operator_waiting_times[i] + expert_operator_waiting_times[i] for i in range(CUSTOMER_COUNT)]
+
+front_desk_operator_utilization = front_desk_operator_busy_time / total_shift_time
+expert_operator_utilization = expert_operator_busy_time / total_shift_time
+avg_total_waiting_time = (sum(total_waiting_times)) / CUSTOMER_COUNT
+max_waiting_to_system_time_ratio = max([total_waiting_times[i]/total_system_times[i] for i in range(CUSTOMER_COUNT)])
+
+
+print(front_desk_operator_utilization)
+print(expert_operator_utilization)
+print(avg_total_waiting_time)
+print(max_waiting_to_system_time_ratio)
