@@ -12,8 +12,7 @@ EXPERT_OPERATOR_SERVICE_TIME_MEAN = 10.2
 EXPERT_OPERATOR_BREAK_RATE = 60
 EXPERT_OPERATOR_BREAK_TIME = 3
 SHIFT_DURATION = 480
-HIGH_PRIORITY = 0
-LOW_PRIORITY = 1
+
 CUSTOMER_COUNT = 5
 
 FRONT_OPERATOR_SIGMA = (math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1))**0.5
@@ -66,7 +65,7 @@ class Customer:
             print(f'{self.name} finished talking to the front desk operator at {self.environment.now}')
 
         expert_operator_wait_start = self.environment.now
-        with self.expert_operator.request(HIGH_PRIORITY) as request:
+        with self.expert_operator.request() as request:
             patience = random.expovariate(1 / PATIENCE_MEAN)
             results = yield request | self.environment.timeout(patience)
 
@@ -112,7 +111,7 @@ def generate_expert_breaks(environment, expert_operator):
             print('timeout break')
             environment.exit()
 
-        with expert_operator.request(LOW_PRIORITY) as request:
+        with expert_operator.request() as request:
             print(f'Expert operator requested break at {environment.now} after {next_break_time} minutes')
             try:
                 yield request
@@ -145,7 +144,7 @@ def generate_shifts(environment, expert_break_process):
 
 environment = simpy.Environment()
 front_desk_operator = simpy.Resource(environment, capacity=1)
-expert_operator = simpy.PriorityResource(environment, capacity=1)
+expert_operator = simpy.Resource(environment, capacity=1)
 customer_process = environment.process(generate_customers(environment, front_desk_operator, expert_operator))
 expert_break_process = environment.process(generate_expert_breaks(environment, expert_operator))
 shift_process = environment.process(generate_shifts(environment, expert_break_process))
