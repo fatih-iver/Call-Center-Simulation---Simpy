@@ -3,7 +3,7 @@ import random
 import numpy as np
 import math
 
-def get_poisson(mean):
+def poisson(mean):
   N = -1
   P = 1
   threshold = math.exp(-mean)
@@ -104,8 +104,7 @@ def generate_customers(environment, front_desk_operator, expert_operator):
 
 def generate_expert_breaks(environment, expert_operator):
     while True:
-        # TODO poisson random number without numpy
-        next_break_time = np.random.poisson(EXPERT_OPERATOR_BREAK_RATE)
+        next_break_time = poisson(EXPERT_OPERATOR_BREAK_RATE)
         try:
             yield environment.timeout(next_break_time)
         except simpy.Interrupt:
