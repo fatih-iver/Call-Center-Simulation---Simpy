@@ -3,6 +3,15 @@ import random
 import numpy as np
 import math
 
+def get_poisson(mean):
+  N = -1, P = 1, threshold = math.exp(-mean)
+
+  while P >= threshold:
+    N += 1
+    P *= random.uniform(0,1)
+  
+  return N
+
 # CONSTANTS
 PATIENCE_MEAN = 60
 INTER_ARRIVAL_TIME_MEAN = 14.3
