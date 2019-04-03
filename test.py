@@ -4,7 +4,9 @@ import numpy as np
 import math
 
 def get_poisson(mean):
-  N = -1, P = 1, threshold = math.exp(-mean)
+  N = -1
+  P = 1
+  threshold = math.exp(-mean)
 
   while P >= threshold:
     N += 1
