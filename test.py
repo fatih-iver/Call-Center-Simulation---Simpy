@@ -3,27 +3,19 @@ import random
 import numpy as np
 import math
 
-def poisson(mean):
-  N = -1
-  P = 1
-  threshold = math.exp(-mean)
-
-  while P >= threshold:
-    N += 1
-    P *= random.uniform(0,1)
-  
-  return N
-
 # CONSTANTS
 PATIENCE_MEAN = 60
 INTER_ARRIVAL_TIME_MEAN = 14.3
 FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN = 7.2
 FRONT_DESK_OPERATOR_SERVICE_TIME_STD = 2.7
-FRONT_DESK_OPERATOR_MU = math.log(FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN) - 0.5 * math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1)
-FRONT_DESK_OPERATOR_SIGMA = (math.log((FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN)**2 + 1))**0.5
+FRONT_DESK_OPERATOR_MU = math.log(FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN) - 0.5 * math.log(
+    (FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN) ** 2 + 1)
+FRONT_DESK_OPERATOR_SIGMA = (math.log(
+    (FRONT_DESK_OPERATOR_SERVICE_TIME_STD / FRONT_DESK_OPERATOR_SERVICE_TIME_MEAN) ** 2 + 1)) ** 0.5
 EXPERT_OPERATOR_SERVICE_TIME_MEAN = 10.2
 EXPERT_OPERATOR_BREAK_RATE = 60
 EXPERT_OPERATOR_BREAK_TIME = 3
+EXPERT_OPERATOR_POISSON_THRESHOLD = math.exp(-1 * EXPERT_OPERATOR_BREAK_RATE)
 SHIFT_DURATION = 480
 CUSTOMER_COUNT = 125
 
@@ -34,6 +26,15 @@ front_desk_operator_waiting_times = [0] * CUSTOMER_COUNT
 expert_operator_waiting_times = [0] * CUSTOMER_COUNT
 total_system_times = [0] * CUSTOMER_COUNT
 total_shift_time = 0
+
+
+def poisson():
+    n, P = 0, 1
+    while True:
+        P *= random.random()
+        if P < EXPERT_OPERATOR_POISSON_THRESHOLD:
+            return n
+        n += 1
 
 class Customer:
     customers_served_or_reneged = CUSTOMER_COUNT
@@ -55,7 +56,7 @@ class Customer:
         front_desk_operator_wait_start = self.environment.now
         with self.front_desk_operator.request() as request:
             yield request
-            
+
             front_desk_operator_wait_end = self.environment.now
             front_desk_operator_waiting_times[self.id] = front_desk_operator_wait_end - front_desk_operator_wait_start
 
@@ -104,7 +105,7 @@ def generate_customers(environment, front_desk_operator, expert_operator):
 
 def generate_expert_breaks(environment, expert_operator):
     while True:
-        next_break_time = poisson(EXPERT_OPERATOR_BREAK_RATE)
+        next_break_time = poisson()
         try:
             yield environment.timeout(next_break_time)
         except simpy.Interrupt:
@@ -148,12 +149,14 @@ shift_process = environment.process(generate_shifts(environment, expert_break_pr
 environment.run()
 
 # STATS
-total_waiting_times = [front_desk_operator_waiting_times[i] + expert_operator_waiting_times[i] for i in range(CUSTOMER_COUNT)]
+total_waiting_times = [front_desk_operator_waiting_times[i] + expert_operator_waiting_times[i] for i in
+                       range(CUSTOMER_COUNT)]
 front_desk_operator_utilization = front_desk_operator_busy_time / total_shift_time
 expert_operator_utilization = expert_operator_busy_time / total_shift_time
 avg_total_waiting_time = (sum(total_waiting_times)) / CUSTOMER_COUNT
-max_waiting_to_system_time_ratio = max([total_waiting_times[i]/total_system_times[i] for i in range(CUSTOMER_COUNT)])
-avg_expert_operator_queue_length = (sum(expert_operator_waiting_times) / CUSTOMER_COUNT) * (CUSTOMER_COUNT / total_shift_time)
+max_waiting_to_system_time_ratio = max([total_waiting_times[i] / total_system_times[i] for i in range(CUSTOMER_COUNT)])
+avg_expert_operator_queue_length = (sum(expert_operator_waiting_times) / CUSTOMER_COUNT) * (
+            CUSTOMER_COUNT / total_shift_time)
 
 print('***SIMULATION STATS***')
 print(f'Utilization of the front-desk operator: {front_desk_operator_utilization}')
